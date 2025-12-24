@@ -11,8 +11,8 @@ This repository contains the official implementation of **UltraBoneUDF**.
 The code has been tested with the following setup:
 
 - **Operating System:** Windows 11 and Ubuntu
-- **Python:** 3.10 and 3.11
-- **CUDA:** 12.6
+- **Python:** 3.10, 3.11
+- **CUDA:** 12.6, 12.8
 - **PyTorch:** 2.7.1
 
 To run the code, you can either:  
