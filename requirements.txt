@@ -1,0 +1,14 @@
+pyhocon
+open3d
+scipy
+pandas
+trimesh
+PyMCubes
+libigl
+opencv-python
+python-igraph
+git+https://github.com/cong-yi/DualMesh-UDF
+spconv-cu126
+comet_ml
+py-cpuinfo
+./extensions/chamfer_dist
