@@ -74,6 +74,8 @@ class Runner:
         self.lambda_NC=self.conf.get_float('train.lambda_NC')
 
         self.lambda_GS=self.conf.get_float('train.lambda_GS')
+        # point-to-plane Neural-Pull target (README Section 7); 0 = the original target
+        self.nc_plane_mm = self.conf.get_float('train.nc_plane_mm', default=0.0)
 
         self.maxiter = self.conf.get_int('train.maxiter')
         self.save_freq = self.conf.get_int('train.save_freq')
@@ -126,9 +128,22 @@ class Runner:
             grad_norm = F.normalize(gradients_sample, dim=1)
             samples_moved = samples - grad_norm * udf_sample
             _, idx1, idx2 = self.ChamferDis(samples_moved.unsqueeze(0), pcd_gt.unsqueeze(0))
-            loss_NC = torch.abs(
-                (grad_norm * (samples - pcd_gt[idx1[0]])).sum(dim=1,
-                                                              keepdim=True) - udf_sample).mean()
+            matched = pcd_gt[idx1[0]]                                  # nearest cloud point of the moved query
+            d = samples - matched
+            if self.nc_plane_mm > 0:
+                # point-to-plane target: distance of the query to the tangent plane of its matched cloud
+                # point, used when the query's sideways offset from that point is below nc_plane_mm.
+                # Elsewhere the original point-to-point projection target is kept.
+                n = pcd_gt_normals[idx1[0]]
+                assert float(n.norm(dim=1).min()) > 0.5, "nc_plane_mm needs the cloud normals from the dataset build"
+                n = F.normalize(n, dim=1)
+                nd = (d * n).sum(dim=1, keepdim=True)
+                tang = (d - nd * n).norm(dim=1, keepdim=True)
+                m = self.nc_plane_mm / float(self.dataset_processed.shape_scale)
+                target = torch.where(tang < m, nd.abs(), (grad_norm * d).sum(dim=1, keepdim=True))
+            else:
+                target = (grad_norm * d).sum(dim=1, keepdim=True)     # original Neural-Pull target
+            loss_NC = torch.abs(target - udf_sample).mean()
             grid_sparse_udf_pred = self.udf_network.udf(grid_sparse)
             grid_sprase_loss = self.L2_loss(grid_sparse_udf_pred, grid_sparse_udf_gt)
             total_loss = self.lambda_NC * loss_NC + self.lambda_GS * grid_sprase_loss
