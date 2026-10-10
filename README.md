@@ -6,6 +6,16 @@ This repository contains the official implementation of **UltraBoneUDF**.
 
 **Paper:** https://doi.org/10.1016/j.compmedimag.2025.102690
 
+## Updates
+
+**2026-10-09, point-to-plane Neural-Pull target.** The reconstruction used to stop at the border of the scanned
+region and leave small holes, so part of the bone surface near that border was never covered. A small change
+to the Neural-Pull target reduces this loss of coverage. On UltraBones100k the GT-to-reconstruction distance drops from
+1.85 mm to 1.15 mm on all 28 cases. Set `nc_plane_mm = 2.0`
+in the conf file; `0` keeps the original behaviour. The best value depends on the data, so compare the two on
+your own point clouds. Section 7 explains the problem and the change:
+[The edge effect and the point-to-plane target](#7-the-edge-effect-and-the-point-to-plane-target).
+
 ## 1. Environment
 
 The code has been tested with the following setup:
@@ -104,6 +114,24 @@ This code is adapted from the following repositories (many thanks to the contrib
 
 
 
+
+# 7. The edge effect and the point-to-plane target
+
+UltraBoneUDF reconstructs an open surface and adds nothing where there is no data, so the surface ends at the
+last input point. The bone within a few millimetres of the border of the scanned region, or inside sparse holes,
+stays uncovered: on UltraBones100k the GT-to-reconstruction distance is 4.9 mm within 2 mm of that border and
+0.7 mm in the interior. The cause is the Neural-Pull target, not the mesher. A query just past the border is
+matched to a border point, so the field learns a positive distance there and its zero set stops at the data.
+
+The update changes that target from point-to-point to point-to-plane, as in ICP. When the sideways offset
+between a query and its matched input point is below `nc_plane_mm` (2 mm), the network learns the distance to
+that point's tangent plane, using the normals the dataset already estimates; for larger offsets the original
+target applies. The surface can then continue across the border and across holes for up to 2 mm. No loss term
+and no data are added, and the mesher is unchanged. With `nc_plane_mm = 0` the code runs exactly as published.
+We chose 2 mm after testing 1, 2 and 3 mm: at 1 mm almost nothing changes, at 3 mm the mesh gains too much
+surface and the reconstruction-to-GT distance rises.
+The value depends on the data: it trades coverage against extra surface near clutter, so for your own
+point clouds compare `nc_plane_mm = 0` with `nc_plane_mm = 2.0` and keep the one that works better.
 
 # License
 [![License: CC BY 4.0](https://img.shields.io/badge/License-CC_BY_4.0-blue.svg)](https://creativecommons.org/licenses/by/4.0/)
